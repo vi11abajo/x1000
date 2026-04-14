@@ -1,0 +1,54 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Logs
+*.log
+
+# Local secrets/config (NEVER commit)
+.env
+!.env.example
+*.key
+*.pem
+*.secret
+*credentials*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# OKX local config
+.okx/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.bak
+str.txt
+
+# Documentation & utilities (not needed for agent runtime)
+AGENT_PROMPTS.md
+STRATEGY_ANALYSIS.md
+setup_autostart.ps1
+start_agent.bat

@@ -233,6 +233,15 @@ DYNAMIC ENTRY LIMIT:
 - Only 1 post-limit position can be open at a time — must close before next entry
 - All daily counters reset at 00:00 UTC (before Asian session)
 
+POSITION EXIT:
+- You can recommend closing an existing position at any time
+- Use direction="close" with the asset name as selected_asset
+- Explain why: reversal, trend weakening, TP reached early, etc.
+- The system will execute the close immediately
+- PRIORITY: Close positions in profit BEFORE they go negative
+- If market conditions deteriorate and position is still +PnL → close it
+- Better to take small profit than wait for reversal and lose
+
 If uncertainty exists → SKIP
 
 OUTPUT FORMAT (MANDATORY)
@@ -267,6 +276,9 @@ Final Decision:
 JSON OUTPUT (REQUIRED):
 At the very end, output ONLY a valid JSON object (no markdown, no extra text after it):
 {"selected_asset":"BTC-USDT-SWAP","direction":"long","score":72,"position_size":"full","callback_ratio":0.005,"tp_percent":4.0,"sl_percent":1.2,"reason":"clean 15M trend + 1H BOS + OB at entry, TP at FVG above, SL below swing low","risk":"funding normal, ATR normal, LONDON+NY overlap"}
+
+Or if closing an existing position:
+{"selected_asset":"ETH-USDT-SWAP","direction":"close","score":0,"position_size":"skip","callback_ratio":0,"tp_percent":0,"sl_percent":0,"reason":"reversal detected, trend weakening","risk":"exit recommended"}
 
 Or if skipping:
 {"selected_asset":null,"direction":null,"score":35,"position_size":"skip","callback_ratio":0,"tp_percent":0,"sl_percent":0,"reason":"all assets weak, low conviction","risk":"skip"}

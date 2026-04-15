@@ -373,6 +373,19 @@ class AIEngine:
             self._send_cycle_report(decision, positions)
             return
 
+        # AI may recommend closing an existing position
+        if decision.direction == "close" and decision.selected_asset in open_assets:
+            log.info("AI recommends closing %s — reason=%s", decision.selected_asset, decision.reason)
+            for p in positions:
+                if p.get("instId") == decision.selected_asset:
+                    pnl = float(p.get("upl", 0) or 0)
+                    self._close_position(decision.selected_asset, p.get("posSide"),
+                                         p.get("mgnMode", "isolated"),
+                                         reason=f"AI_recommend:{decision.reason}", pnl=pnl)
+                    self._send_cycle_report(decision, positions)
+                    return
+            return
+
         # Progressive conviction threshold — each new entry requires higher score
         if decision.score < self._conviction_threshold:
             log.info("Score %d below conviction threshold %d — skipping",
@@ -427,6 +440,8 @@ class AIEngine:
 
     def _send_cycle_report(self, decision: AIDecision, positions: list[dict]) -> None:
         """Send activity report to Telegram after each cycle."""
+        utc_now = time.strftime("%H:%M:%S UTC", time.gmtime())
+
         # Build positions summary
         if positions:
             pos_lines = []
@@ -464,7 +479,7 @@ class AIEngine:
         )
 
         report = (
-            f"<b>x1000 Cycle Report</b>\n\n"
+            f"<b>x1000 Cycle Report</b> [{utc_now}]\n\n"
             f"{action}\n\n"
             f"{details}\n\n"
             f"<b>Positions:</b>\n{pos_text}\n\n"
@@ -482,7 +497,8 @@ class AIEngine:
         if not positions:
             return
 
-        lines = ["<b>Position Monitor</b>"]
+        utc_now = time.strftime("%H:%M:%S UTC", time.gmtime())
+        lines = [f"<b>Position Monitor</b> [{utc_now}]"]
         for p in positions:
             inst = p.get("instId", "?")
             side = p.get("posSide", "?")

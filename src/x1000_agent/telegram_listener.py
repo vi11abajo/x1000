@@ -19,6 +19,7 @@ class TelegramListener:
     chat_id: str
     enabled: bool = True
     _offset: int = 0
+    _processed_ids: set[int] = field(default_factory=set)
     _handlers: dict[str, Callable] = field(default_factory=dict)
     _chat_handler: Callable[[str], str] | None = None  # natural language handler
 
@@ -76,6 +77,11 @@ class TelegramListener:
 
     def _handle_message(self, update: dict) -> None:
         """Process a single update."""
+        update_id = update.get("update_id", 0)
+        if update_id in self._processed_ids:
+            return  # skip duplicate
+        self._processed_ids.add(update_id)
+
         msg = update.get("message", {})
         chat = msg.get("chat", {})
         if str(chat.get("id", "")) != self.chat_id:
@@ -126,9 +132,14 @@ class TelegramListener:
 
     def run(self, stop_event: Callable[[], bool] = lambda: False) -> None:
         """Start polling loop."""
-        # Drop all pending updates on startup to avoid stale messages
+        # Drain all pending updates on startup to avoid stale messages
         try:
-            self._get_updates()
+            while True:
+                updates = self._get_updates()
+                if not updates:
+                    break
+                for u in updates:
+                    self._offset = u.get("update_id", 0) + 1
         except Exception:
             pass
         log.info("Telegram listener started")

@@ -22,7 +22,7 @@ You must THINK, ANALYZE, and SYNTHESIZE multiple signals before making decisions
 CORE OBJECTIVE
 
 Maximize PnL% over a 14-day competition period while strictly controlling risk.
-Target: 10-12 high-conviction trades with 60%+ win rate.
+Target: high-conviction trades with 60%+ win rate.
 
 You must:
 - Take only high-conviction trades
@@ -91,12 +91,12 @@ For EACH asset (BTC, ETH, SOL, HYPE), you must:
      * Funding > +0.5% daily → long overcrowded (-5 pts bullish)
      * Funding < -0.2% in uptrend → squeeze likely (+5 pts bullish)
      * Funding > +0.2% in downtrend → flush likely (+5 pts bearish)
-   - Liquidation Cluster (INFERRED):
+   - Liquidation Cluster (from Hyperliquid L2 order book):
      * Swing high within 1.5% above → short-liq cluster → +5 pts bullish (squeeze potential)
      * Swing low within 1.5% below → long-liq cluster → -5 pts for longs (sweep risk)
      * Price between tight clusters (< 0.5%) → VETO — skip
      * Hard SL: place BELOW long-liq cluster (longs) or ABOVE short-liq cluster (shorts)
-   - Whale Flow (INFERRED from derivatives):
+   - Whale Flow (from Hyperliquid large trades):
      * Funding negative + OI rising + price rising → smart money long → +5 pts bullish
      * Funding positive + OI rising + price falling → smart money short → +5 pts bearish
      * Funding extreme + OI declining → large players exiting → -8 pts (skip)
@@ -110,11 +110,11 @@ For EACH asset (BTC, ETH, SOL, HYPE), you must:
 
 6. Analyze TIME REGIME (VERY IMPORTANT, 0-15 pts):
    Determine current mode:
-   - LONDON+NY OVERLAP (12:00–18:00 UTC) — highest priority, most aggressive
-   - LONDON OPEN (07:00–12:00 UTC) — breakout setups from Asian range
-   - NEWS MODE (±1h from 13:30 / 14:30 / 16:00 / 20:00 UTC) — only score ≥ 75
+   - NY OVERLAP (13:30–16:30 UTC) — highest priority, peak liquidity, most aggressive
+   - LONDON OPEN (07:00–13:30 UTC) — breakout setups, Frankfurt 07:00, LSE 08:00
+   - NEWS MODE (±1h from 12:30 / 13:30 / 14:00 / 16:00 / 20:00 UTC) — only score ≥ 75
    - ASIAN SESSION (00:00–07:00 UTC) — only extreme setups ≥ 80
-   - LATE US (18:00–00:00 UTC) — prefer closing over new entries
+   - US LATE (16:30–20:00 UTC) — dotorhovka, reduced size; after 20:00 close only
 
 SCORING MODEL (0-100)
 
@@ -284,7 +284,7 @@ If conditions are not ideal → DO NOTHING.
 
 Capital preservation = success.
 
-Competition mindset: 10-12 quality trades over 14 days with 60%+ win rate beats 50+ mediocre entries."""
+Competition mindset: quality trades with 60%+ win rate beats 50+ mediocre entries."""
 
 
 @dataclass
@@ -341,7 +341,7 @@ class AIAgent:
         position: dict[str, Any],
         open_positions: list[str],
     ) -> str:
-        utc_now = time.strftime("%Y-%m-%d %H:%M:%S UTC")
+        utc_now = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
 
         # Build market summary for each asset
         assets_text = ""

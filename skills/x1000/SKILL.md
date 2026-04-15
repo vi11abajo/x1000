@@ -21,7 +21,7 @@ metadata:
 
 An autonomous trading strategy for the OKX Agent Trade Kit competition. Uses **15M candles** as the primary timeframe for timely signals, with **1H candles** for structural confirmation. Dual-loop architecture: **Entry Loop** (every 15 min) finds new positions, **Monitoring Loop** (every 5 min) detects reversals for early profit-taking.
 
-**Competition goal: Maximize PnL% over 14 days. Quality over quantity — target 10-12 high-conviction trades with 60%+ win rate.**
+**Goal: Maximize PnL% with strict risk control. Quality over quantity — high-conviction trades with 60%+ win rate.**
 
 **All orders are placed automatically via Agent Trade Kit with `tag=agentTradeKit`.**
 
@@ -145,24 +145,29 @@ Extreme funding rates are powerful contrarian signals:
 | Funding > +0.2% in downtrend | Longs trapped, flush likely | +5 pts to bearish score |
 | Raw vs OI-weighted divergence > 0.3% | Large players positioning opposite retail | +3 pts caution |
 
-### 2.4 — Liquidation Cluster Analysis (INFERRED)
+### 2.4 — Liquidation Cluster Analysis
 
-Since real-time liquidation data requires external APIs, infer cluster zones from price structure:
+Real-time liquidation cluster data is fetched from Hyperliquid L2 order book depth.
+Large walls in the order book represent potential liquidation zones.
 
-| Inference | Signal | Adjustment |
+| Condition | Signal | Adjustment |
 |---|---|---|
-| Recent swing low within 1.5% below price | Long-liq cluster likely below | -5 pts for longs (sweep risk before rally) |
-| Recent swing high within 1.5% above price | Short-liq cluster likely above | +5 pts for longs (short squeeze potential) |
-| Price between two tight clusters (< 0.5% apart) | Trapped range | VETO — skip, wait for breakout |
+| Long-liq cluster within 1.5% below price | Price may sweep before rally | -5 pts for longs (sweep risk) |
+| Short-liq cluster within 1.5% above price | Price may sweep before drop | +5 pts for longs (short squeeze potential) |
+| Price between tight clusters (< 0.5% apart) | Trapped range | VETO — skip, wait for breakout |
 | Hard SL placement for LONG | Place BELOW long-liq cluster | Not above it — avoid sweep |
 | Hard SL placement for SHORT | Place ABOVE short-liq cluster | Not below it — avoid sweep |
 
-### 2.5 — Whale Flow Filter (INFERRED)
+### 2.5 — Whale Flow Filter
 
-Since whale tracking requires external APIs, infer large player positioning from derivatives:
+Real-time whale flow data is fetched from Hyperliquid recent large trades (>$100k).
+Buy/sell ratio of institutional trades shows directional consensus.
 
-| Inference | Signal | Adjustment |
+| Condition | Signal | Adjustment |
 |---|---|---|
+| Whale buy_pct >= 70% | Strong bullish institutional consensus | +5 pts bullish |
+| Whale sell_pct >= 70% | Strong bearish institutional consensus | +5 pts bearish |
+| Whale buy_pct 40-60% (split) | Uncertainty — institutions disagree | -3 pts caution |
 | Funding negative + OI rising + price rising | Smart money long, retail short | +5 pts bullish (short squeeze building) |
 | Funding positive + OI rising + price falling | Smart money short, retail long | +5 pts bearish (long flush building) |
 | Funding extreme + OI declining | Large players exiting, retail trapped | -8 pts (uncertainty — reduce or skip) |
@@ -174,31 +179,31 @@ Since whale tracking requires external APIs, infer large player positioning from
 
 The AI determines the current market mode based on UTC time:
 
-### Mode 1: LONDON+NY OVERLAP (12:00–18:00 UTC) — HIGHEST PRIORITY
-- **Characteristics**: Maximum global liquidity, 2-3× average volume, cleanest trends
-- **Key window**: 13:30–14:30 UTC = US macro data releases
-- **Action**: Most aggressive — prioritize breakout and trend-following setups
+### Mode 1: NY OVERLAP (13:30–16:30 UTC) — HIGHEST PRIORITY
+- **Characteristics**: NYSE opens at 13:30, London still active — peak global liquidity, 2-3× average volume, cleanest trends
+- **Key window**: 13:30–15:30 UTC = NY Killzone, most reliable SMC structures
+- **Action**: Most aggressive — prioritize breakout and trend-following setups; 1.5x size allowed
 - **Entry interval**: Every 15 minutes
 
-### Mode 2: LONDON OPEN (07:00–12:00 UTC)
-- **Characteristics**: European traders react to Asian moves, sharp opening impulses
-- **Action**: Prioritize breakout setups from Asian range
+### Mode 2: LONDON OPEN (07:00–13:30 UTC)
+- **Characteristics**: Frankfurt opens at 07:00 (pre-market, potential Judas Swing false moves), LSE opens at 08:00 with main volume. London Killzone 08:00–10:00 UTC forms most reliable 1H Order Blocks and FVGs.
+- **Action**: Prioritize breakout setups from Asian range; full size after 08:00
 - **Entry interval**: Every 15 minutes
 
-### Mode 3: NEWS / MACRO MODE (±1 hour from 13:30 / 14:30 / 16:00 / 20:00 UTC)
-- **Characteristics**: Expected sharp impulse (FOMC, CPI, NFP, Fed speeches)
+### Mode 3: NEWS / MACRO MODE (±1 hour from 12:30 / 13:30 / 14:00 / 16:00 / 20:00 UTC)
+- **Characteristics**: US macro data (CPI, NFP) released at 12:30 or 14:00 UTC depending on DST. FOMC/NFP at 13:30-14:30 UTC.
 - **Action**: Trade ONLY strongest setups (score ≥ 75); half size
 - **Entry interval**: Every 5 minutes (monitoring only, entries rare)
 
 ### Mode 4: ASIAN SESSION (00:00–07:00 UTC)
-- **Characteristics**: Thin order books, wider spreads, false breakouts
+- **Characteristics**: Tokyo opens 23:00 UTC (prev day), HK/Singapore 01:00 UTC. Critical window 00:30–03:00 UTC (CNY fixing, Chinese exchanges open). Thin order books, wider spreads, false breakouts. 07:00 UTC = dead zone before London.
 - **Action**: Only extreme setups (score ≥ 80); quarter size
 - **Entry interval**: Every 60 minutes
 
-### Mode 5: LATE US / PACIFIC (18:00–00:00 UTC)
-- **Characteristics**: US session winding down, liquidity declining
-- **Action**: Prefer closing positions over new entries
-- **Entry interval**: Every 30 minutes
+### Mode 5: US LATE (16:30–20:00 UTC)
+- **Characteristics**: European traders leave after 16:30, liquidity drops. US trends continue but with less conviction. After 20:00 UTC = flat mode (London closed, fixings settled).
+- **Action**: 16:30–20:00: dotorhovka US trends, 0.75x size. After 20:00: close only, no new entries.
+- **Entry interval**: Every 30 minutes (16:30–20:00), disabled after 20:00
 
 ---
 
@@ -322,12 +327,13 @@ For each asset that passed veto checks, evaluate six dimensions:
 #### Dimension 5: Time / Market Mode (0–15 points)
 | Mode + Setup Quality | Points |
 |---|---|
-| LONDON+NY OVERLAP (12:00–18:00) + clean trend | 13-15 |
-| LONDON OPEN (07:00–12:00) + breakout setup | 11-14 |
-| LONDON+NY OVERLAP + moderate setup | 10-12 |
+| NY OVERLAP (13:30–16:30) + clean trend | 13-15 |
+| LONDON OPEN (07:00–13:30) + breakout setup | 11-14 |
+| NY OVERLAP + moderate setup | 10-12 |
 | NEWS MODE + strongest setup (score ≥ 75 from other dims) | 7-12 |
-| LATE US (18:00–00:00) + clean setup | 6-10 |
+| US LATE (16:30–20:00) + clean setup | 6-10 |
 | ASIAN SESSION (00:00–07:00) + extreme setup (≥ 80) | 3-7 |
+| PACIFIC/CLOSE (20:00–00:00) | 0-2 (close only) |
 | Any mode + weak setup | 0-5 |
 
 #### Dimension 6: Smart Money Concepts (0–20 points) — 1H
@@ -599,11 +605,12 @@ Final leverage = min(50, TP-based, ATR-based, notional/10)
 | Market Condition | AI Adaptation |
 |---|---|
 | **Strong trend (15M+1H aligned)** | Prefer asset with best EMA + RSI + OI combination |
-| **LONDON+NY OVERLAP (12:00–18:00)** | Most aggressive; full size; standard trailing (0.5%); entries every 15 min |
-| **LONDON OPEN (07:00–12:00)** | Aggressive; full size; watch for Asian range breakout; entries every 15 min |
+| **NY OVERLAP (13:30–16:30)** | Most aggressive; 1.5x size; standard trailing (0.5%); entries every 15 min |
+| **LONDON OPEN (07:00–13:30)** | Aggressive; full size; watch for Asian range breakout; entries every 15 min |
 | **NEWS / MACRO mode** | Trade only top signals (score ≥ 75); half size; wider trailing (0.8%); entries every 5 min |
 | **ASIAN SESSION (00:00–07:00)** | Reduce risk to quarter; only extreme setups (≥ 80); entries every 60 min |
-| **LATE US (18:00–00:00)** | Standard scoring; prefer closing positions over new entries; entries every 30 min |
+| **US LATE (16:30–20:00)** | Reduced size (0.75x); prefer closing positions; entries every 30 min |
+| **PACIFIC/CLOSE (20:00–00:00)** | Close only, no new entries |
 | **Funding extreme (< -0.5%)** | Strong contrarian bullish signal — consider short squeeze setup |
 | **Funding extreme (> +0.5%)** | Overheated longs — caution, reduce size or skip |
 | **Low volatility** | Skip trades entirely; tight trailing (0.3%) |
@@ -645,4 +652,4 @@ Reason: [specific reason]
 
 Capital preservation is the highest priority. A skipped cycle is a successful risk management decision.
 
-**Competition mindset: 10-12 quality trades over 14 days with 60%+ win rate beats 50+ mediocre entries.**
+**Competition mindset: quality trades with 60%+ win rate beats 50+ mediocre entries.**

@@ -86,12 +86,13 @@ class AIEngine:
 
         # Minimum interval between new entries (seconds) by market mode
         self._entry_intervals = {
-            "LONDON+NY OVERLAP": 900,    # 15 min
-            "LONDON OPEN": 900,          # 15 min
-            "NEWS MODE": 300,            # 5 min
-            "ASIAN SESSION": 3600,       # 60 min
-            "LATE US": 1800,             # 30 min
-            "NORMAL": 900,               # 15 min default
+            "NY OVERLAP": 900,         # 15 min
+            "LONDON OPEN": 900,        # 15 min
+            "NEWS MODE": 300,          # 5 min
+            "ASIAN SESSION": 3600,     # 60 min
+            "US LATE": 1800,           # 30 min
+            "PACIFIC/CLOSE": 999999,   # disabled — close only
+            "NORMAL": 900,             # 15 min default
         }
 
         # Telegram command listener
@@ -144,7 +145,7 @@ class AIEngine:
 
     def _build_chat_context(self, positions: list[dict]) -> str:
         """Build context string for chat responses."""
-        utc_now = time.strftime("%Y-%m-%d %H:%M:%S UTC")
+        utc_now = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
         lines = [f"Time: {utc_now}"]
 
         # Positions
@@ -1021,16 +1022,18 @@ class AIEngine:
     def _get_entry_interval(self, full_output: str) -> int:
         """Determine minimum interval between new entries based on market mode."""
         output_upper = full_output.upper()
-        if "LONDON+NY" in output_upper or "LONDON+NY OVERLAP" in output_upper:
-            return self._entry_intervals["LONDON+NY OVERLAP"]
+        if "NY OVERLAP" in output_upper:
+            return self._entry_intervals["NY OVERLAP"]
         if "LONDON OPEN" in output_upper:
             return self._entry_intervals["LONDON OPEN"]
         if "NEWS MODE" in output_upper or "NEWS/" in output_upper:
             return self._entry_intervals["NEWS MODE"]
         if "ASIAN SESSION" in output_upper or "ASIAN" in output_upper:
             return self._entry_intervals["ASIAN SESSION"]
-        if "LATE US" in output_upper:
-            return self._entry_intervals["LATE US"]
+        if "US LATE" in output_upper or "LATE US" in output_upper:
+            return self._entry_intervals["US LATE"]
+        if "PACIFIC" in output_upper or "CLOSE" in output_upper:
+            return self._entry_intervals["PACIFIC/CLOSE"]
         return self._entry_intervals["NORMAL"]
 
     def _check_daily_entries(self) -> bool:

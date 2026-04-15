@@ -390,6 +390,17 @@ class AIEngine:
             for p in positions:
                 if p.get("instId") == decision.selected_asset:
                     pnl = float(p.get("upl", 0) or 0)
+                    # Hard guard: never close at a loss (except max hold time)
+                    if pnl < 0:
+                        hold_seconds = time.time() - self._entry_times.get(decision.selected_asset, 0)
+                        max_hold = 4 * 3600
+                        if hold_seconds < max_hold:
+                            log.info("AI close vetoed (negative PnL): %s PnL=$%.2f — waiting for recovery or SL",
+                                     decision.selected_asset, pnl)
+                            self._send_cycle_report(decision, positions)
+                            return
+                        # Max hold reached with negative PnL — still close to prevent further loss
+                        log.info("Max hold time reached with negative PnL: %s — closing anyway", decision.selected_asset)
                     self._close_position(decision.selected_asset, p.get("posSide"),
                                          p.get("mgnMode", "isolated"),
                                          reason=f"AI_recommend:{decision.reason}", pnl=pnl)

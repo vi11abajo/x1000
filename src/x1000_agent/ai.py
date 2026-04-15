@@ -42,6 +42,7 @@ EXECUTION RULES (MANDATORY)
 - Max leverage: 50x (you decide per trade based on TP distance)
 - NEVER open a second position in the same asset
 - Max hold time: 4 hours (auto-close if +PnL)
+- Minimum hold time: 15 minutes (DO NOT recommend closing positions held <15min unless hard SL hit)
 
 TIMEFRAME
 

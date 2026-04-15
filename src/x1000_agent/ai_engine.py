@@ -375,6 +375,17 @@ class AIEngine:
 
         # AI may recommend closing an existing position
         if decision.direction == "close" and decision.selected_asset in open_assets:
+            # Minimum hold time: prevent premature exits
+            entry_time = self._entry_times.get(decision.selected_asset, 0)
+            hold_seconds = time.time() - entry_time
+            min_hold = 15 * 60  # 15 minutes
+            if hold_seconds < min_hold:
+                hold_min = hold_seconds / 60
+                log.info("AI close vetoed: %s held %.0fm < %.0fm minimum — letting trade develop",
+                         decision.selected_asset, hold_min, min_hold / 60)
+                self._send_cycle_report(decision, positions)
+                return
+
             log.info("AI recommends closing %s — reason=%s", decision.selected_asset, decision.reason)
             for p in positions:
                 if p.get("instId") == decision.selected_asset:

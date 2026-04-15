@@ -873,6 +873,22 @@ class AIEngine:
             except Exception as e:
                 log.warning("Failed to cancel algo orders for %s: %s", inst_id, e)
 
+            # Cancel all pending regular orders (limit, etc.) for this instrument
+            try:
+                open_orders = self.mcp.call("swap_get_orders", {"instType": "SWAP", "instId": inst_id, "status": "open"})
+                if isinstance(open_orders, list):
+                    for order in open_orders:
+                        if order.get("instId") == inst_id:
+                            ord_id = order.get("ordId")
+                            if ord_id:
+                                self.mcp.call("swap_cancel_order", {
+                                    "instId": inst_id,
+                                    "ordId": ord_id,
+                                })
+                                log.info("Cancelled pending order %s for %s", ord_id, inst_id)
+            except Exception as e:
+                log.warning("Failed to cancel pending orders for %s: %s", inst_id, e)
+
             self.tg.notify_error(f"Auto-closed {inst_id}: {reason} (PnL=${pnl:+.2f})", inst_id)
 
             # Record trade result for cooldown tracking

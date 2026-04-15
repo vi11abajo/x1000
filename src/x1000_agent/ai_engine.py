@@ -370,12 +370,14 @@ class AIEngine:
 
         if decision.selected_asset is None or decision.direction is None:
             log.info("AI decided to skip — score=%d, reason=%s", decision.score, decision.reason)
+            self._send_cycle_report(decision, positions)
             return
 
         # Progressive conviction threshold — each new entry requires higher score
         if decision.score < self._conviction_threshold:
             log.info("Score %d below conviction threshold %d — skipping",
                      decision.score, self._conviction_threshold)
+            self._send_cycle_report(decision, positions)
             return
 
         # Daily entry limit — with dynamic post-limit exception
@@ -422,6 +424,98 @@ class AIEngine:
 
         self._execute(signal, decision)
         self._last_entry_time = time.time()
+
+    def _send_cycle_report(self, decision: AIDecision, positions: list[dict]) -> None:
+        """Send activity report to Telegram after each cycle."""
+        # Build positions summary
+        if positions:
+            pos_lines = []
+            for p in positions:
+                inst = p.get("instId", "?")
+                side = p.get("posSide", "?")
+                pnl = float(p.get("upl", 0) or 0)
+                pos_lines.append(f"{inst} {side}: ${pnl:+.2f}")
+            pos_text = "\n".join(pos_lines)
+        else:
+            pos_text = "No open positions"
+
+        if decision.selected_asset and decision.direction:
+            action = f"<b>ENTRY</b> {decision.selected_asset} {decision.direction.upper()}"
+            details = (
+                f"Score: {decision.score}/100\n"
+                f"Size: {decision.position_size}\n"
+                f"TP: {decision.tp_percent}% | SL: {decision.sl_percent}%\n"
+                f"Trailing: {decision.callback_ratio*100:.1f}%\n"
+                f"Reason: {decision.reason}"
+            )
+        else:
+            action = "<b>SKIP</b>"
+            details = (
+                f"Score: {decision.score}/100\n"
+                f"Reason: {decision.reason}"
+            )
+
+        # Risk state
+        risk_text = (
+            f"Daily PnL: ${self.risk.daily_pnl_usd:+.2f}\n"
+            f"Unrealized: ${self.risk.unrealized_pnl_usd:+.2f}\n"
+            f"Kill switch: {'ON' if self.risk.killed else 'OFF'}\n"
+            f"Entries today: {self._entry_count}/4"
+        )
+
+        report = (
+            f"<b>x1000 Cycle Report</b>\n\n"
+            f"{action}\n\n"
+            f"{details}\n\n"
+            f"<b>Positions:</b>\n{pos_text}\n\n"
+            f"<b>Risk:</b>\n{risk_text}"
+        )
+
+        # Truncate if too long for Telegram
+        if len(report) > 4000:
+            report = report[:3997] + "..."
+
+        self.tg.notify(report)
+
+    def _send_monitoring_report(self, positions: list[dict]) -> None:
+        """Send position monitoring report to Telegram."""
+        if not positions:
+            return
+
+        lines = ["<b>Position Monitor</b>"]
+        for p in positions:
+            inst = p.get("instId", "?")
+            side = p.get("posSide", "?")
+            avg = float(p.get("avgPx", 0))
+            pnl = float(p.get("upl", 0) or 0)
+            mgn = float(p.get("margin", 10))
+            pnl_pct = (pnl / mgn * 100) if mgn > 0 else 0
+            entry_time = self._entry_times.get(inst)
+            if entry_time:
+                hold_min = (time.time() - entry_time) / 60
+                hold_str = f"{hold_min:.0f}m"
+            else:
+                hold_str = "unknown"
+
+            tp = self._tp_levels.get(inst)
+            tp_str = f"TP: {tp}" if tp else "TP: N/A"
+            pending = self._reversal_pending.get(inst, 0)
+            pending_str = f"Reversal pending: {pending}" if pending > 0 else ""
+
+            lines.append(
+                f"\n<code>{inst}</code> {side} @ {avg}\n"
+                f"  PnL: ${pnl:+.2f} ({pnl_pct:+.1f}%) | Hold: {hold_str}\n"
+                f"  {tp_str}"
+                + (f"\n  {pending_str}" if pending_str else "")
+            )
+
+        lines.append(f"\nDaily PnL: ${self.risk.daily_pnl_usd:+.2f}")
+
+        report = "\n".join(lines)
+        if len(report) > 4000:
+            report = report[:3997] + "..."
+
+        self.tg.notify(report)
 
     def run_loop(self) -> None:
         """Dual-loop architecture: Entry Loop (15min) + Monitoring Loop (5min)."""
@@ -578,6 +672,9 @@ class AIEngine:
 
             except Exception as e:
                 log.warning("Monitoring error for %s: %s", inst_id, e)
+
+        # Send monitoring report
+        self._send_monitoring_report(positions)
 
     def _reversal_action(self, score: int, pnl_pct: float, time_in_trade: float) -> str:
         """Determine action based on reversal score, PnL, and time in trade.

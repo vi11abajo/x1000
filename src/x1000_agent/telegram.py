@@ -127,3 +127,7 @@ class TelegramNotifier:
             f"Reason: <code>{_safe(reason or 'manual')}</code>"
         )
         self.send(text)
+
+    def notify(self, text: str) -> None:
+        """Send arbitrary notification text."""
+        self.send(text)
